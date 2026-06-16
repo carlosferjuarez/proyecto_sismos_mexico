@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Credenciales — nunca deben subirse al repo
+kaggle.json
+.kaggle/
+*.env
