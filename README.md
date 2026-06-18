@@ -32,29 +32,29 @@ El ETL usa la API pública de USGS porque permite descargar datos de forma progr
 
 ```text
 ┌──────────────────────────────────────┐
-│ USGS Earthquake Catalog API           │
-│ GeoJSON por rango de fechas y bbox    │
+│ USGS Earthquake Catalog API          │
+│ GeoJSON por rango de fechas y bbox   │
 └──────────────────┬───────────────────┘
                    │ HTTP GET
                    ▼
 ┌──────────────────────────────────────┐
-│ ETL Python — etl_pipeline.py          │
-│ Extract: requests                     │
-│ Transform: pandas                     │
-│ Load: SQLAlchemy/to_sql               │
+│ ETL Python — etl_pipeline.py         │
+│ Extract: requests                    │
+│ Transform: pandas                    │
+│ Load: SQLAlchemy/to_sql              │
 └──────────────────┬───────────────────┘
                    │ INSERT
                    ▼
 ┌──────────────────────────────────────┐
-│ PostgreSQL / Aurora                   │
-│ Schema: sismos_dwh                    │
-│ dim_date, dim_hour, dim_magnitude,    │
-│ dim_region, fact_sismos               │
+│ PostgreSQL / Aurora                  │
+│ Schema: sismos_dwh                   │
+│ dim_date, dim_hour, dim_magnitude,   │
+│ dim_region, fact_sismos              │
 └──────────────────┬───────────────────┘
                    │ SELECT
                    ▼
 ┌──────────────────────────────────────┐
-│ SQL analítico + dashboard matplotlib  │
+│ SQL analítico + dashboard matplotlib │
 └──────────────────────────────────────┘
 ```
 
