@@ -91,9 +91,9 @@ psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/01_schem
 ### 2. Poblar dimensiones
 
 ```bash
-psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/02_dim_date_populate.sql
-psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/03_dim_magnitude_populate.sql
-psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/04_dim_region_populate.sql
+psql "postgresql://postgres:TU_PASSWORD@aurora-mod4.cluster-cspvdhxirjyp.us-east-1.rds.amazonaws.com:5432/northwind" -f scripts/02_dim_date_populate.sql
+psql "postgresql://postgres:TU_PASSWORD@aurora-mod4.cluster-cspvdhxirjyp.us-east-1.rds.amazonaws.com:5432/northwind" -f scripts/03_dim_magnitude_populate.sql
+psql "postgresql://postgres:TU_PASSWORD@aurora-mod4.cluster-cspvdhxirjyp.us-east-1.rds.amazonaws.com:5432/northwind" -f scripts/04_dim_region_populate.sql
 ```
 
 ### 3. Instalar dependencias
@@ -135,16 +135,17 @@ python scripts/etl_pipeline.py \
 ### 5. Correr consultas analíticas
 
 ```bash
-psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f analisis/queries_analiticas.sql
+psql "postgresql://postgres:TU_PASSWORD@aurora-mod4.cluster-cspvdhxirjyp.us-east-1.rds.amazonaws.com:5432/northwind" -f analisis/queries_analiticas.sql
 ```
 
 ### 6. Generar visualizaciones
 
 ```bash
-export AURORA_HOST=HOST
-export AURORA_DATABASE=northwind
-export AURORA_USER=postgres
-export AURORA_PASSWORD=TU_PASSWORD
+export AURORA_HOST='aurora-mod4.cluster-cspvdhxirjyp.us-east-1.rds.amazonaws.com'
+export AURORA_PASSWORD='TU_PASSWORD'
+export AURORA_USER="postgres"
+export AURORA_DATABASE="northwind"
+export AURORA_PORT="5432"
 python dashboard/generar_visualizaciones.py
 ```
 
