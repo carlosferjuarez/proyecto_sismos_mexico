@@ -1,148 +1,207 @@
-# Análisis de Sismicidad 1990–2023
+# Proyecto final — Análisis de sismicidad en México y LATAM
 
-> Proyecto Módulo 4 - Diplomado UNAM - IIMAS  
+> Proyecto inspirado en la estructura del ejemplo del diplomado: modelo dimensional, ETL reproducible, SQL analítico y visualizaciones para dashboard.
 
----
-
-## Resumen
+## Resumen ejecutivo
 
 | Campo | Valor |
 |---|---|
-| **Pregunta analítica** | ¿Cuáles son los patrones espacio-temporales de la sismicidad global entre 1990 y 2023, y cómo se compara la actividad sísmica de México frente a otras regiones de alta sismicidad mundial? |
-| **Dataset** | USGS Earthquake Dataset 1990–2023 — Kaggle (~200k registros) |
-| **Fuente** | [kaggle.com/datasets/alessandrolobello/the-ultimate-earthquake-dataset-from-1990-2023](https://www.kaggle.com/datasets/alessandrolobello/the-ultimate-earthquake-dataset-from-1990-2023) |
-| **Modelo** | Esquema estrella: 1 tabla de hechos + 4 dimensiones |
-| **Infraestructura** | Aurora PostgreSQL en AWS |
-| **ETL** | `scripts/etl_pipeline.py` — pandas + SQLAlchemy |
-| **SQL avanzado** | Window functions, CTEs con LAG, PERCENTILE_CONT, JSONB |
-| **Dashboard** | (mínimo 3 visualizaciones interactivas) |
-
----
+| Pregunta analítica | ¿Dónde, cuándo y con qué intensidad se concentran los sismos registrados en México/LATAM, y qué patrones temporales aparecen por región, magnitud y profundidad? |
+| Dataset | Eventos sísmicos de USGS Earthquake Catalog API filtrados por caja geográfica México/LATAM. |
+| Fuente | USGS Earthquake Catalog API: `https://earthquake.usgs.gov/fdsnws/event/1/query` |
+| Modelo | Esquema estrella con 1 fact + 4 dimensiones: fecha, hora, magnitud, región. |
+| Infraestructura | PostgreSQL/Aurora PostgreSQL, schema `sismos_dwh`. |
+| ETL | `scripts/etl_pipeline.py` descarga GeoJSON, transforma a tabla limpia y carga a PostgreSQL. |
+| SQL avanzado | CTE, window functions, percentiles, ranking, densidad temporal y comparación mensual. |
+| Dashboard | 4 visualizaciones estáticas con matplotlib: mapa, serie mensual, top regiones y heatmap hora × mes. |
 
 ## Problema y motivación
 
-México es uno de los países más sísmicos del mundo, ubicado sobre la convergencia de cinco
-placas tectónicas. Los sismos del 19 de septiembre de 1985 y 2017 dejaron una huella
-profunda en la memoria colectiva y pusieron en evidencia la necesidad de entender los
-patrones de actividad sísmica para la toma de decisiones en materia de protección civil,
-construcción y política pública.
+México es un país con alta actividad sísmica por su ubicación tectónica. Analizar los patrones espaciales y temporales de los sismos permite responder preguntas útiles para gestión de riesgo, comunicación pública y análisis exploratorio:
 
-Este proyecto responde tres preguntas concretas:
-
-1. **¿Qué zonas geográficas y rangos de profundidad concentran los sismos de mayor
-   magnitud a nivel global y en México específicamente?**
-2. **¿Existe una tendencia temporal en la frecuencia e intensidad de los sismos entre
-   1990 y 2023?**
-3. **¿Cómo varía la calidad de los datos sísmicos (`reviewed` vs `automatic`) según
-   la red de detección, y qué impacto tiene en el análisis?**
-
----
+1. ¿Qué regiones concentran más sismos y cuáles tienen mayor magnitud promedio?
+2. ¿Hay patrones por mes, día de la semana u hora?
+3. ¿Cómo se distribuye la profundidad según la magnitud?
+4. ¿Qué eventos destacan por magnitud o por poca profundidad?
 
 ## Origen de los datos
 
-El dataset proviene del catálogo del **United States Geological Survey (USGS)**, publicado
-en Kaggle. Cada registro corresponde a un evento sísmico individual con atributos
-geofísicos, temporales y de calidad instrumental.
+El ETL usa la API pública de USGS porque permite descargar datos de forma programática y reproducible. Para un proyecto estrictamente mexicano también se puede reemplazar la fuente por el catálogo del Servicio Sismológico Nacional, cuando esté disponible.
 
-### Problemáticas de limpieza identificadas
+### Flujo end-to-end
 
-| Columna | Problema |
-|---|---|
-| `magType` | Múltiples notaciones heterogéneas (`ml`, `mb`, `mw`, `md`, `ms`, `mww`) que requieren normalización |
-| `place` | Campo de texto libre — mezcla de formatos, idiomas y niveles de detalle geográfico |
-| `depth` | Valores negativos y outliers extremos (sismos reportados a -5 km o >700 km) |
-| `horizontalError` / `depthError` / `magError` | Nulos en ~40–60% de registros según red de detección |
-| `status` | Mezcla de eventos `automatic` (preliminares) vs `reviewed` (validados) |
-| Duplicados blandos | Un mismo evento registrado por múltiples redes con IDs distintos |
-
-Estas problemáticas son abordadas explícitamente en la fase de **Transform** del ETL.
-
----
-
-## Modelo dimensional
-
-Ver diagrama completo en [`docs/diagrama_modelo.md`](docs/diagrama_modelo.md)
-
-### Esquema estrella — resumen
-
-**Grano de la fact:** un registro por evento sísmico individual reportado por el USGS.
-
----
-
-## Cómo ejecutar
-
-### 1. Requisitos previos
-
-```bash
-pip install pandas sqlalchemy psycopg2-binary kaggle tqdm
+```text
+┌──────────────────────────────────────┐
+│ USGS Earthquake Catalog API           │
+│ GeoJSON por rango de fechas y bbox    │
+└──────────────────┬───────────────────┘
+                   │ HTTP GET
+                   ▼
+┌──────────────────────────────────────┐
+│ ETL Python — etl_pipeline.py          │
+│ Extract: requests                     │
+│ Transform: pandas                     │
+│ Load: SQLAlchemy/to_sql               │
+└──────────────────┬───────────────────┘
+                   │ INSERT
+                   ▼
+┌──────────────────────────────────────┐
+│ PostgreSQL / Aurora                   │
+│ Schema: sismos_dwh                    │
+│ dim_date, dim_hour, dim_magnitude,    │
+│ dim_region, fact_sismos               │
+└──────────────────┬───────────────────┘
+                   │ SELECT
+                   ▼
+┌──────────────────────────────────────┐
+│ SQL analítico + dashboard matplotlib  │
+└──────────────────────────────────────┘
 ```
-
-### 2. Descargar el dataset de Kaggle
-
-```bash
-# Requiere tener configurado ~/.kaggle/kaggle.json con tus credenciales
-kaggle datasets download -d alessandrolobello/the-ultimate-earthquake-dataset-from-1990-2023
-unzip the-ultimate-earthquake-dataset-from-1990-2023.zip -d datasets/
-```
-
-### 3. Crear el schema en Aurora
-
-```bash
-psql "postgresql://postgres:TU_PASSWORD@TU_HOST:5432/postgres" \
-     -f scripts/01_schema_ddl.sql
-```
-
-### 4. Ejecutar el ETL
-
-```bash
-python scripts/etl_pipeline.py \
-    --host TU_HOST \
-    --password TU_PASSWORD \
-    --database postgres
-```
-
-### 5. Abrir el dashboard
-
-Abre el archivo `dashboard/sismos_dashboard.pbix` en Power BI Desktop y actualiza
-la conexión a tu instancia de Aurora.
-
----
-
-## SQL avanzado destacado
-
-Las queries analíticas viven en `scripts/02_queries_analiticas.sql` e incluyen:
-
-- **Window functions**: ranking de países por magnitud promedio anual con `RANK() OVER`
-- **CTE + LAG**: detección de semanas con actividad sísmica anómala (>2x la media)
-- **PERCENTILE_CONT**: distribución de magnitud por zona tectónica
-- **JSONB**: metadatos de calidad del evento almacenados como objeto y consultados con `->>`
-
----
-
-## Dashboard — visualizaciones
-
-| # | Visualización | Pregunta que responde |
-|---|---|---|
-| 1 | Mapa de calor global de epicentros (lat/lon × magnitud) | ¿Dónde se concentra la sismicidad de mayor impacto? |
-| 2 | Serie temporal de frecuencia mensual por categoría de magnitud | ¿Hay tendencias o ciclos en 30 años? |
-| 3 | Distribución profundidad vs magnitud por región tectónica | ¿Los sismos superficiales son más destructivos? |
-| 4 | Comparativa México vs mundo: % de sismos ≥5.0 por año | ¿Qué tan relevante es México en la sismicidad global? |
-
----
-
-## Hallazgos principales
-
-> *Esta sección se completará una vez ejecutado el ETL y generadas las visualizaciones.*
-
----
 
 ## Estructura del repositorio
 
----
+```text
+proyecto_sismos_mexico/
+├── README.md
+├── requirements.txt
+├── scripts/
+│   ├── 01_schema_ddl.sql
+│   ├── 02_dim_date_populate.sql
+│   ├── 03_dim_magnitude_populate.sql
+│   ├── 04_dim_region_populate.sql
+│   └── etl_pipeline.py
+├── analisis/
+│   └── queries_analiticas.sql
+├── dashboard/
+│   ├── generar_visualizaciones.py
+│   └── img/
+└── data/
+    ├── raw/
+    └── processed/
+```
 
-## Referencias
+## Cómo ejecutar
 
-- [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/)
-- [Kaggle Dataset — Alessandro Lobello](https://www.kaggle.com/datasets/alessandrolobello/the-ultimate-earthquake-dataset-from-1990-2023)
-- [Servicio Sismológico Nacional — UNAM](http://www.ssn.unam.mx/)
-- Material del módulo: Tema 02 (Modelo dimensional), Tema 04 (ETL Python), Tema 05 (SQL avanzado)
+### 1. Crear el schema
+
+```bash
+psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/01_schema_ddl.sql
+```
+
+### 2. Poblar dimensiones
+
+```bash
+psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/02_dim_date_populate.sql
+psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/03_dim_magnitude_populate.sql
+psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f scripts/04_dim_region_populate.sql
+```
+
+### 3. Instalar dependencias
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Descargar y cargar datos
+
+Ejemplo para México, 2020–2025, magnitud mínima 3.5:
+
+```bash
+python scripts/etl_pipeline.py \
+  --host HOST \
+  --database northwind \
+  --user postgres \
+  --password TU_PASSWORD \
+  --start-date 2020-01-01 \
+  --end-date 2025-12-31 \
+  --scope mexico \
+  --min-magnitude 3.5
+```
+
+Para LATAM:
+
+```bash
+python scripts/etl_pipeline.py \
+  --host HOST \
+  --database northwind \
+  --user postgres \
+  --password TU_PASSWORD \
+  --start-date 2020-01-01 \
+  --end-date 2025-12-31 \
+  --scope latam \
+  --min-magnitude 4.0
+```
+
+### 5. Correr consultas analíticas
+
+```bash
+psql "postgresql://postgres:TU_PASSWORD@HOST:5432/northwind" -f analisis/queries_analiticas.sql
+```
+
+### 6. Generar visualizaciones
+
+```bash
+export AURORA_HOST=HOST
+export AURORA_DATABASE=northwind
+export AURORA_USER=postgres
+export AURORA_PASSWORD=TU_PASSWORD
+python dashboard/generar_visualizaciones.py
+```
+
+Las imágenes se guardan en `dashboard/img/`.
+
+## Modelo dimensional
+
+```text
+                         ┌──────────────┐
+                         │   dim_date   │
+                         │ date_key PK  │
+                         │ full_date    │
+                         │ year/month   │
+                         │ day_of_week  │
+                         └──────▲───────┘
+                                │
+┌──────────────┐        ┌────────┴────────┐        ┌────────────────┐
+│   dim_hour   │◄───────│   fact_sismos   │───────►│ dim_magnitude  │
+│ hour_key PK  │        │ event_id PK     │        │ magnitude_key  │
+│ hour         │        │ date_key FK     │        │ bucket         │
+│ day_part     │        │ hour_key FK     │        │ min/max mag    │
+└──────────────┘        │ region_key FK   │        └────────────────┘
+                        │ mag_key FK      │
+                        │ magnitude      │
+                        │ depth_km       │
+                        │ latitude       │
+                        │ longitude      │
+                        │ place          │
+                        └────────▲───────┘
+                                 │
+                         ┌───────┴───────┐
+                         │  dim_region   │
+                         │ region_key PK │
+                         │ region_name   │
+                         │ country_scope │
+                         │ bbox coords   │
+                         └───────────────┘
+```
+
+## Decisiones de diseño
+
+- **Grano de la fact:** una fila por evento sísmico reportado por la API.
+- **Fecha y hora separadas:** permite analizar estacionalidad por mes y patrones por hora.
+- **Región derivada:** se asigna con bounding boxes sencillos para México y LATAM; puede refinarse con shapefiles si el curso lo permite.
+- **Magnitud como dimensión:** facilita agrupar por rangos: ligera, moderada, fuerte, mayor.
+- **Profundidad como medida:** permite comparar eventos superficiales vs profundos.
+
+## Visualizaciones propuestas
+
+1. Mapa de epicentros por magnitud.
+2. Serie mensual de número de sismos.
+3. Top 10 regiones por número de eventos.
+4. Heatmap de eventos por hora y mes.
+
+## Posibles extensiones
+
+- Unir con población por estado/país para medir exposición.
+- Agregar sismos históricos del SSN como segunda fuente.
+- Clasificar eventos por cercanía a CDMX, costa del Pacífico o zona de subducción.
+- Crear dashboard en Streamlit o Power BI con los resultados SQL.
