@@ -46,7 +46,7 @@ def fetch_usgs(start_date: str, end_date: str, scope: str, min_magnitude: float)
         "endtime": end_date,
         "minmagnitude": min_magnitude,
         "orderby": "time-asc",
-        "limit": 200000,
+        "limit": 20000,
         **BBOX[scope],
     }
     response = requests.get(USGS_ENDPOINT, params=params, timeout=90)
