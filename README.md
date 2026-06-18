@@ -155,7 +155,7 @@ Las imágenes se guardan en `dashboard/img/`.
 
 ```text
                          ┌──────────────┐
-                         │   dim_date   │
+                         │ dim_date     │
                          │ date_key PK  │
                          │ full_date    │
                          │ year/month   │
@@ -163,21 +163,21 @@ Las imágenes se guardan en `dashboard/img/`.
                          └──────▲───────┘
                                 │
 ┌──────────────┐        ┌────────┴────────┐        ┌────────────────┐
-│   dim_hour   │◄───────│   fact_sismos   │───────►│ dim_magnitude  │
+│ dim_hour     │◄───────│   fact_sismos   │───────►│ dim_magnitude  │
 │ hour_key PK  │        │ event_id PK     │        │ magnitude_key  │
 │ hour         │        │ date_key FK     │        │ bucket         │
 │ day_part     │        │ hour_key FK     │        │ min/max mag    │
 └──────────────┘        │ region_key FK   │        └────────────────┘
                         │ mag_key FK      │
-                        │ magnitude      │
-                        │ depth_km       │
-                        │ latitude       │
-                        │ longitude      │
-                        │ place          │
-                        └────────▲───────┘
+                        │ magnitude       │
+                        │ depth_km        │
+                        │ latitude        │
+                        │ longitude       │
+                        │ place           │
+                        └────────▲────────┘
                                  │
                          ┌───────┴───────┐
-                         │  dim_region   │
+                         │ dim_region    │
                          │ region_key PK │
                          │ region_name   │
                          │ country_scope │
